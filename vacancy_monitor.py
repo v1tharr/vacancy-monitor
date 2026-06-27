@@ -1,14 +1,14 @@
 """
-Vacancy Monitor — парсер вакансий с сайтов компаний.
+Vacancy Monitor — мониторинг вакансий на сайтах IT-компаний.
 
-Режимы запуска:
-  python vacancy_monitor.py           — разовый, всегда шлёт сводку в TG
-  python vacancy_monitor.py --server  — серверный, TG только при новых/обновлённых
+Запуск:
+  python vacancy_monitor.py           # разовый, всегда шлёт сводку в TG
+  python vacancy_monitor.py --server  # только при новых/обновлённых вакансиях
 
-Файлы конфигурации:
-  .env         — токен и chat_id Telegram (не в git)
+Конфиги:
+  .env         — TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_PROXY (не в git)
   config.json  — сайты, ключевые слова, таймауты (не в git)
-  state.json   — состояние парсера, создаётся автоматически (не в git)
+  state.json   — хэши виденных вакансий, создаётся автоматически (не в git)
 """
 
 import argparse
@@ -41,16 +41,8 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Конфигурация
-# ---------------------------------------------------------------------------
-
 def _load_dotenv() -> None:
-    """
-    Простой парсер .env без внешних зависимостей.
-    Не перезаписывает переменные которые уже есть в окружении —
-    это позволяет переопределять настройки через export перед запуском.
-    """
+    # Не перезаписываем переменные из окружения - можно переопределить через export
     if not ENV_FILE.exists():
         return
     for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
@@ -66,48 +58,36 @@ def _load_dotenv() -> None:
 
 def load_config() -> dict:
     _load_dotenv()
-
     if not CONFIG_FILE.exists():
         log.error(
-            "Файл config.json не найден.\n"
+            "config.json не найден. "
             "Скопируй config.example.json → config.json и заполни своими данными."
         )
         sys.exit(1)
-
     try:
         return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
-        log.error("config.json содержит ошибку JSON: %s", e)
+        log.error("Ошибка в config.json: %s", e)
         sys.exit(1)
 
 
 def get_tg_settings() -> dict:
-    """
-    Секреты читаются только из окружения, никогда из config.json.
-    Так токен не попадёт в git даже случайно.
-    """
+    # Секреты читаются только из env - токен не попадёт в git даже случайно
     token   = os.getenv("TELEGRAM_TOKEN",   "")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
     proxy   = os.getenv("TELEGRAM_PROXY",   "")
-
-    errors = []
+    errors  = []
     if not token:
-        errors.append("TELEGRAM_TOKEN не задан")
+        errors.append("TELEGRAM_TOKEN")
     if not chat_id:
-        errors.append("TELEGRAM_CHAT_ID не задан")
+        errors.append("TELEGRAM_CHAT_ID")
     if errors:
-        log.error(
-            "Отсутствуют обязательные переменные: %s\n"
-            "Создай .env по образцу .env.example",
-            ", ".join(errors),
-        )
+        log.error("Не заданы переменные: %s — создай .env по образцу .env.example", ", ".join(errors))
         sys.exit(1)
-
     return {"token": token, "chat_id": chat_id, "proxy": proxy}
 
 
 def load_state() -> dict:
-    """state.json хранит хэши уже виденных вакансий между запусками."""
     if STATE_FILE.exists():
         try:
             return json.loads(STATE_FILE.read_text(encoding="utf-8"))
@@ -122,18 +102,8 @@ def save_state(state: dict) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Фильтрация вакансий
-# ---------------------------------------------------------------------------
-
 def _is_relevant(text: str, hard_kws: list, exclude_kws: list) -> tuple[bool, str]:
-    """
-    Двухэтапный фильтр:
-    1. Сначала проверяем исключения — быстро отсекаем нерелевантные вакансии
-       (1С-автоматизация, бухгалтерия и т.п. которые тоже содержат "инженер")
-    2. Затем ищем жёсткие ключевые слова — конкретные технологии и роли
-    Порядок важен: исключения имеют приоритет над совпадениями.
-    """
+    # Исключения проверяем первыми "автоматизация" есть и в devops и в 1С-вакансиях
     lower = text.lower()
     for ex in exclude_kws:
         if ex in lower:
@@ -145,31 +115,21 @@ def _is_relevant(text: str, hard_kws: list, exclude_kws: list) -> tuple[bool, st
 
 
 def _text_hash(text: str) -> str:
-    """
-    Хэшируем нормализованный текст, а не HTML.
-    HTML меняется от рекламных блоков и счётчиков даже если вакансия не изменилась,
-    поэтому берём только видимый текст и убираем лишние пробелы.
-    """
+    # Хэшируем текст а не HTML, рекламные блоки и счётчики меняют HTML постоянно
     normalized = re.sub(r"\s+", " ", text.strip().lower())
     return hashlib.md5(normalized.encode("utf-8")).hexdigest()
 
 
 def _extract_context(text: str, keyword: str, max_len: int = 200) -> str:
-    """
-    Вырезает предложение где встретилось ключевое слово.
-    Нужно чтобы в Telegram-уведомлении сразу было видно контекст —
-    например "Требуется опыт работы с Docker от 1 года" вместо просто названия вакансии.
-    """
+    # Вырезаем предложение с ключевым словом для превью в Telegram
     lower = text.lower()
     idx = lower.find(keyword.lower())
     if idx == -1:
         return text[:max_len].strip()
 
-    # Ищем границу предложения слева — ближайшая точка или перенос строки до keyword
     left  = max(text.rfind(".", 0, idx), text.rfind("\n", 0, idx))
     start = left + 1 if left != -1 else max(0, idx - 120)
 
-    # Граница справа — конец предложения после keyword
     right_dot = text.find(".", idx)
     right_nl  = text.find("\n", idx)
     candidates = [x for x in [right_dot, right_nl] if x != -1]
@@ -180,10 +140,6 @@ def _extract_context(text: str, keyword: str, max_len: int = 200) -> str:
         fragment = fragment[:max_len].rstrip() + "…"
     return fragment
 
-
-# ---------------------------------------------------------------------------
-# Telegram
-# ---------------------------------------------------------------------------
 
 async def send_telegram(message: str, tg: dict) -> bool:
     token   = tg["token"]
@@ -208,20 +164,19 @@ async def send_telegram(message: str, tg: dict) -> bool:
             async with httpx.AsyncClient(**kwargs) as client:
                 resp = await client.post(url, json=payload)
                 if resp.status_code != 200:
-                    log.error("Telegram error %s: %s", resp.status_code, resp.text[:200])
+                    log.error("Telegram %s: %s", resp.status_code, resp.text[:200])
                     return False
                 log.info("Telegram: отправлено.")
                 return True
         except TypeError:
             # httpx < 0.27 использует proxies= вместо proxy=
-            # оставляем совместимость чтобы не требовать обновления
             old: dict = {"timeout": 15}
             if use_proxy:
                 old["proxies"] = use_proxy
             async with httpx.AsyncClient(**old) as client:
                 resp = await client.post(url, json=payload)
                 if resp.status_code != 200:
-                    log.error("Telegram error %s: %s", resp.status_code, resp.text[:200])
+                    log.error("Telegram %s: %s", resp.status_code, resp.text[:200])
                     return False
                 log.info("Telegram: отправлено.")
                 return True
@@ -230,9 +185,8 @@ async def send_telegram(message: str, tg: dict) -> bool:
         return await _try(proxy)
     except Exception as exc:
         if proxy:
-            # В TUN-режиме (Hiddify/WireGuard перехватывают весь трафик)
-            # прокси не нужен — система сама заворачивает трафик в туннель.
-            # Если прокси указан но недоступен — пробуем без него.
+            # В TUN-режиме (Hiddify/WireGuard) трафик идёт через туннель напрямую,
+            # отдельный HTTP-прокси не нужен
             log.warning("Прокси недоступен (%s), пробую без прокси...", exc)
             try:
                 return await _try(None)
@@ -243,22 +197,14 @@ async def send_telegram(message: str, tg: dict) -> bool:
         return False
 
 
-# ---------------------------------------------------------------------------
-# Playwright — загрузка страниц
-# ---------------------------------------------------------------------------
-
 async def _safe_goto(page: Page, url: str, timeout: int) -> bool:
-    """
-    Загружает страницу и ждёт networkidle для завершения JS-рендеринга.
-    networkidle опциональный — некоторые SPA никогда его не достигают,
-    поэтому таймаут на нём не считаем ошибкой.
-    """
     try:
         await page.goto(url, timeout=timeout, wait_until="domcontentloaded")
         try:
+            # networkidle некоторые SPA никогда не достигают это не ошибка
             await page.wait_for_load_state("networkidle", timeout=timeout)
         except PlaywrightTimeout:
-            pass  # domcontentloaded достаточно для большинства страниц
+            pass
         return True
     except PlaywrightTimeout:
         log.warning("Таймаут: %s", url)
@@ -269,7 +215,6 @@ async def _safe_goto(page: Page, url: str, timeout: int) -> bool:
 
 
 async def _get_page_text(page: Page) -> str:
-    """innerText вместо page.content() — получаем только видимый текст без тегов."""
     try:
         return await page.inner_text("body")
     except Exception:
@@ -277,11 +222,7 @@ async def _get_page_text(page: Page) -> str:
 
 
 async def _collect_links(page: Page, base_url: str) -> list[dict]:
-    """
-    Собирает все ссылки страницы и приводит href к абсолютному виду.
-    Относительные пути (/vacancy/123) дополняем схемой и доменом базового URL.
-    Якоря (#section) и javascript: пропускаем.
-    """
+    # Приводим href к абсолютному виду т.к сайты часто используют относительные пути
     links = await page.query_selector_all("a[href]")
     results = []
     seen: set[str] = set()
@@ -296,7 +237,7 @@ async def _collect_links(page: Page, base_url: str) -> list[dict]:
             elif href.startswith("/"):
                 abs_href = f"{parsed_base.scheme}://{parsed_base.netloc}{href}"
             else:
-                continue
+                continue  # якоря, javascript: и прочий мусор
             if abs_href in seen:
                 continue
             seen.add(abs_href)
@@ -306,10 +247,6 @@ async def _collect_links(page: Page, base_url: str) -> list[dict]:
     return results
 
 
-# ---------------------------------------------------------------------------
-# Логика проверки одного URL
-# ---------------------------------------------------------------------------
-
 async def check_url(
     page: Page,
     base_url: str,
@@ -317,14 +254,6 @@ async def check_url(
     new_state: dict,
     cfg: dict,
 ) -> list[dict]:
-    """
-    Стратегия парсинга:
-    - Если на странице есть ссылки с ключевыми словами в title/href —
-      заходим на каждую и проверяем полный текст детальной страницы.
-      Это точнее: ссылка могла называться "DevOps" но вести на нерелевантную страницу.
-    - Если ссылок-кандидатов нет — проверяем текст самой страницы целиком
-      (случай когда все вакансии на одной странице без отдельных URL).
-    """
     hard_kws    = cfg["keywords"]["hard"]
     exclude_kws = cfg["keywords"]["exclude"]
     timeouts    = cfg["timeouts"]
@@ -338,7 +267,7 @@ async def check_url(
 
     all_links = await _collect_links(page, base_url)
 
-    # Первичный отбор по title/href — не финальный, детальная проверка ниже
+    # Первичный отбор по title/href грубый, финальная проверка по тексту страницы
     candidate_links = [
         lnk for lnk in all_links
         if any(kw in f"{lnk['title']} {lnk['href']}".lower() for kw in hard_kws)
@@ -350,20 +279,20 @@ async def check_url(
             href  = lnk["href"]
             title = lnk["title"]
 
-            await asyncio.sleep(0.5)  # вежливая пауза между запросами
+            await asyncio.sleep(0.5)
             detail_ok = await _safe_goto(page, href, timeouts["link_ms"])
             if not detail_ok:
                 continue
 
             detail_text = await _get_page_text(page)
-
-            # Финальная проверка по полному тексту страницы вакансии
             relevant, kw = _is_relevant(detail_text, hard_kws, exclude_kws)
+
             if not relevant:
                 log.info("  Пропускаю: %s", title[:60])
                 try:
                     await page.go_back()
                 except Exception:
+                    # go_back() падает если был редирект или открылась новая вкладка
                     await _safe_goto(page, base_url, timeouts["page_ms"])
                 await asyncio.sleep(0.3)
                 continue
@@ -383,24 +312,17 @@ async def check_url(
                 status = "seen"
                 log.info("  Без изменений: %s", title[:60])
 
-            found.append({
-                "title":   title,
-                "url":     href,
-                "keyword": kw,
-                "status":  status,
-                "context": context,
-            })
+            found.append({"title": title, "url": href, "keyword": kw,
+                          "status": status, "context": context})
 
             try:
                 await page.go_back()
             except Exception:
-                # go_back() падает если страница открылась в новой вкладке
-                # или был редирект — просто возвращаемся на базовый URL
                 await _safe_goto(page, base_url, timeouts["page_ms"])
             await asyncio.sleep(0.3)
 
     else:
-        # Нет отдельных страниц вакансий — проверяем текущую страницу целиком
+        # Нет отдельных страниц вакансий - мониторим саму страницу целиком
         page_text = await _get_page_text(page)
         relevant, kw = _is_relevant(page_text, hard_kws, exclude_kws)
         if relevant:
@@ -419,22 +341,13 @@ async def check_url(
                 status = "seen"
                 log.info("  Без изменений (страница целиком)")
 
-            found.append({
-                "title":   base_url,
-                "url":     base_url,
-                "keyword": kw,
-                "status":  status,
-                "context": context,
-            })
+            found.append({"title": base_url, "url": base_url, "keyword": kw,
+                          "status": status, "context": context})
         else:
             log.info("  Ничего релевантного")
 
     return found
 
-
-# ---------------------------------------------------------------------------
-# Формирование Telegram-сообщения
-# ---------------------------------------------------------------------------
 
 def build_message(all_found: list[dict], server_mode: bool) -> Optional[str]:
     new_items     = [v for v in all_found if v["status"] == "new"]
@@ -442,7 +355,6 @@ def build_message(all_found: list[dict], server_mode: bool) -> Optional[str]:
     seen_count    = sum(1 for v in all_found if v["status"] == "seen")
     has_changes   = bool(new_items or updated_items)
 
-    # В серверном режиме молчим если нет изменений — не спамим пустыми сводками
     if server_mode and not has_changes:
         return None
 
@@ -456,13 +368,9 @@ def build_message(all_found: list[dict], server_mode: bool) -> Optional[str]:
         context = v.get("context", "").strip()
         out = f'• <a href="{url}">{title}</a> <i>[{kw}]</i>'
         if context:
-            # Выделяем ключевое слово жирным чтобы сразу было видно в контексте
             highlighted = re.sub(
-                f"({re.escape(kw)})",
-                r"<b>\1</b>",
-                context,
-                flags=re.IGNORECASE,
-                count=1,
+                f"({re.escape(kw)})", r"<b>\1</b>",
+                context, flags=re.IGNORECASE, count=1,
             )
             out += f"\n  💬 <i>{highlighted}</i>"
         return out
@@ -470,11 +378,9 @@ def build_message(all_found: list[dict], server_mode: bool) -> Optional[str]:
     if new_items:
         lines.append("🆕 <b>Новые вакансии:</b>")
         lines.extend(fmt_vacancy(v) for v in new_items)
-
     if updated_items:
         lines.append("\n🔄 <b>Обновились:</b>")
         lines.extend(fmt_vacancy(v) for v in updated_items)
-
     if not has_changes:
         lines.append("✅ Новых вакансий нет")
 
@@ -482,13 +388,8 @@ def build_message(all_found: list[dict], server_mode: bool) -> Optional[str]:
         f"\n📊 <b>Итог:</b> {len(new_items)} новых · "
         f"{len(updated_items)} обновлено · {seen_count} без изменений"
     )
-
     return "\n".join(lines)
 
-
-# ---------------------------------------------------------------------------
-# Точка входа
-# ---------------------------------------------------------------------------
 
 async def main(server_mode: bool) -> None:
     log.info("=" * 60)
@@ -502,10 +403,9 @@ async def main(server_mode: bool) -> None:
     all_found: list = []
 
     log.info("URL для проверки: %d", len(cfg["target_urls"]))
-    log.info("Прокси Telegram:  %s", tg["proxy"] or "нет (TUN/прямой доступ)")
+    log.info("Прокси Telegram:  %s", tg["proxy"] or "нет")
 
     async with async_playwright() as pw:
-        # headless=True — браузер без GUI, работает на серверах без дисплея
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context(
             user_agent=(
@@ -527,9 +427,7 @@ async def main(server_mode: bool) -> None:
 
         await browser.close()
 
-    # Объединяем старый state с новым.
-    # Ключи которые не встретились в этом прогоне остаются —
-    # вакансия могла просто не загрузиться из-за таймаута.
+    # Старые записи не удаляем - вакансия могла не загрузиться из-за таймаута
     merged_state = {**state, **new_state}
     save_state(merged_state)
 
