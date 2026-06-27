@@ -1,0 +1,21 @@
+{
+  "target_urls": [
+    "https://example-company.ru/vacancies",
+    "https://another-company.com/jobs",
+    "https://barnaul.hh.ru/employer/1234567?tab=VACANCIES"
+  ],
+  "keywords": {
+    "hard": [
+      "devops", "docker", "linux", "kubernetes", "ansible",
+      "nginx", "ci/cd", "zabbix", "grafana", "proxmox"
+    ],
+    "exclude": [
+      "бухгалтер", "кассир", "1с", "торговл"
+    ]
+  },
+  "timeouts": {
+    "page_ms": 30000,
+    "link_ms": 20000,
+    "inter_page_sec": 2.0
+  }
+}

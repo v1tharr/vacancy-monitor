@@ -1,0 +1,17 @@
+# секреты
+.env
+
+# личные настройки — у каждого свои
+config.json
+
+# хэш парсера
+state.json
+
+# логи
+*.log
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
