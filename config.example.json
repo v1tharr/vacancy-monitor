@@ -1,21 +1,29 @@
 {
   "target_urls": [
     "https://example-company.ru/vacancies",
-    "https://another-company.com/jobs",
-    "https://barnaul.hh.ru/employer/1234567?tab=VACANCIES"
+    "https://another-company.com/jobs"
   ],
   "keywords": {
     "hard": [
-      "devops", "docker", "linux", "kubernetes", "ansible",
-      "nginx", "ci/cd", "zabbix", "grafana", "proxmox"
+      "devops",
+      "docker",
+      "linux",
+      "nginx",
+      "ci/cd",
+      "zabbix",
+      "proxmox"
     ],
     "exclude": [
-      "бухгалтер", "кассир", "1с", "торговл"
+      "бухгалтер",
+      "кассир",
+      "1с",
+      "торговл"
     ]
   },
   "timeouts": {
     "page_ms": 30000,
     "link_ms": 20000,
+    "networkidle_ms": 5000,
     "inter_page_sec": 2.0
   }
 }
