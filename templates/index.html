@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Статус — Vacancy Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Мониторинг вакансий</h1>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <span class="stat-value">{{ state_count }}</span>
+    <span class="stat-label">вакансий в базе</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ url_count }}</span>
+    <span class="stat-label">сайтов в списке</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ kw_count }}</span>
+    <span class="stat-label">ключевых слов</span>
+  </div>
+</div>
+
+<div class="last-run">
+  {% if last_run.time %}
+    <p class="last-run-time">Последний запуск: <strong>{{ last_run.time }}</strong></p>
+    <p class="last-run-result">Найдено новых: {{ last_run.new }}, обновлено: {{ last_run.updated }}</p>
+  {% else %}
+    <p class="last-run-time muted">Запусков ещё не было</p>
+  {% endif %}
+</div>
+
+<div class="run-controls">
+  {% if parser_running %}
+    <button class="btn btn-danger" onclick="stopParser()">Остановить</button>
+    <span class="running-indicator">● парсер работает</span>
+  {% else %}
+    <button class="btn btn-primary" onclick="runParser()">Проверить сейчас</button>
+  {% endif %}
+</div>
+
+<div id="run-status" class="run-status hidden"></div>
+
+<div class="hint">
+  <p>Запускает разовую проверку всех сайтов и шлёт сводку в Telegram.</p>
+  <p>Для автоматического запуска по расписанию используй <strong>cron</strong> (Linux) или <strong>Task Scheduler</strong> (Windows) — см. README.</p>
+</div>
+{% endblock %}

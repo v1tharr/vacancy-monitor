@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Лог — Vacancy Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Лог запусков</h1>
+  <div class="log-controls">
+    <label>
+      <input type="checkbox" id="autoscroll" checked> автопрокрутка
+    </label>
+    <button class="btn btn-small" onclick="refreshLog()">обновить</button>
+    <select id="lines-count" onchange="refreshLog()">
+      <option value="50">50 строк</option>
+      <option value="100" selected>100 строк</option>
+      <option value="500">500 строк</option>
+    </select>
+  </div>
+</div>
+
+<div class="log-container">
+  <pre id="log-output">загрузка...</pre>
+</div>
+{% endblock %}

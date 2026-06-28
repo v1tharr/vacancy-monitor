@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Настройки — Vacancy Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Настройки</h1>
+</div>
+
+{% if success %}
+  <div class="alert alert-success">{{ success }}</div>
+{% endif %}
+{% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="tabs">
+  <button class="tab-btn{% if active_tab == 'telegram' %} active{% endif %}" data-tab="telegram">Telegram</button>
+  <button class="tab-btn{%- if active_tab == 'keywords' %} active{%- endif %}" data-tab="keywords">Ключевые слова</button>
+  <button class="tab-btn{%- if active_tab == 'urls' %} active{%- endif %}" data-tab="urls">Сайты</button>
+  <button class="tab-btn{%- if active_tab == 'timeouts' %} active{%- endif %}" data-tab="timeouts">Таймауты</button>
+  <button class="tab-btn{%- if active_tab == 'danger' %} active{%- endif %}" data-tab="danger">Сброс</button>
+</div>
+
+<div class="tab-content{%- if active_tab == 'telegram' %} active{%- endif %}" id="tab-telegram">
+  <form method="POST">
+    <input type="hidden" name="section" value="telegram">
+    <div class="form-group">
+      <label for="token">Токен бота</label>
+      <input type="text" id="token" name="token"
+             value="{{ env.get('TELEGRAM_TOKEN', '') }}"
+             placeholder="1234567890:AAF...">
+      <span class="hint-text">Получить у @BotFather</span>
+    </div>
+    <div class="form-group">
+      <label for="chat_id">Chat ID</label>
+      <input type="text" id="chat_id" name="chat_id"
+             value="{{ env.get('TELEGRAM_CHAT_ID', '') }}"
+             placeholder="123456789">
+      <span class="hint-text">Узнать у @userinfobot</span>
+    </div>
+    <div class="form-group">
+      <label for="proxy">HTTP прокси <span class="muted">(необязательно)</span></label>
+      <input type="text" id="proxy" name="proxy"
+             value="{{ env.get('TELEGRAM_PROXY', '') }}"
+             placeholder="http://127.0.0.1:12334">
+      <span class="hint-text">Нужен если Telegram заблокирован без VPN. В TUN-режиме оставь пустым.</span>
+    </div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+  </form>
+</div>
+
+<div class="tab-content{%- if active_tab == 'keywords' %} active{%- endif %}" id="tab-keywords">
+  <form method="POST">
+    <input type="hidden" name="section" value="keywords">
+    <div class="form-group">
+      <label for="hard">Ключевые слова <span class="muted">(каждое с новой строки)</span></label>
+      <textarea id="hard" name="hard" rows="12">{{ cfg.keywords.hard | join('\n') }}</textarea>
+      <span class="hint-text">Вакансия подходит если содержит хотя бы одно из этих слов.</span>
+    </div>
+    <div class="form-group">
+      <label for="exclude">Исключения <span class="muted">(каждое с новой строки)</span></label>
+      <textarea id="exclude" name="exclude" rows="8">{{ cfg.keywords.exclude | join('\n') }}</textarea>
+      <span class="hint-text">Вакансия пропускается если содержит любое из этих слов.</span>
+    </div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+  </form>
+</div>
+
+<div class="tab-content{%- if active_tab == 'urls' %} active{%- endif %}" id="tab-urls">
+  <form method="POST">
+    <input type="hidden" name="section" value="urls">
+    <div class="form-group">
+      <label for="urls">Список сайтов <span class="muted">(каждый с новой строки)</span></label>
+      <textarea id="urls" name="urls" rows="16">{{ cfg.target_urls | join('\n') }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+  </form>
+</div>
+
+<div class="tab-content{%- if active_tab == 'timeouts' %} active{%- endif %}" id="tab-timeouts">
+  <form method="POST">
+    <input type="hidden" name="section" value="timeouts">
+    <div class="form-group">
+      <label for="page_ms">Таймаут загрузки страницы (мс)</label>
+      <input type="number" id="page_ms" name="page_ms"
+             value="{{ cfg.timeouts.page_ms }}" min="5000" max="120000" step="1000">
+    </div>
+    <div class="form-group">
+      <label for="link_ms">Таймаут загрузки вакансии (мс)</label>
+      <input type="number" id="link_ms" name="link_ms"
+             value="{{ cfg.timeouts.link_ms }}" min="5000" max="60000" step="1000">
+    </div>
+    <div class="form-group">
+      <label for="networkidle_ms">Ожидание networkidle (мс)</label>
+      <input type="number" id="networkidle_ms" name="networkidle_ms"
+             value="{{ cfg.timeouts.networkidle_ms }}" min="1000" max="30000" step="500">
+      <span class="hint-text">Если сайт не загружает вакансии — увеличь до 10000.</span>
+    </div>
+    <div class="form-group">
+      <label for="inter_page_sec">Пауза между сайтами (сек)</label>
+      <input type="number" id="inter_page_sec" name="inter_page_sec"
+             value="{{ cfg.timeouts.inter_page_sec }}" min="0.5" max="10" step="0.5">
+    </div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+  </form>
+</div>
+
+<div class="tab-content{%- if active_tab == 'danger' %} active{%- endif %}" id="tab-danger">
+  <div class="danger-section">
+    <div class="danger-item">
+      <div class="danger-info">
+        <strong>Очистить историю вакансий</strong>
+        <p>Удаляет state.json. При следующем запуске все найденные вакансии придут в Telegram как новые.</p>
+      </div>
+      <button class="btn btn-danger" onclick="clearData('state')">Очистить историю</button>
+    </div>
+    <div class="danger-item">
+      <div class="danger-info">
+        <strong>Очистить лог</strong>
+        <p>Удаляет содержимое vacancy_monitor.log.</p>
+      </div>
+      <button class="btn btn-danger" onclick="clearData('log')">Очистить лог</button>
+    </div>
+  </div>
+  <div id="danger-status" class="run-status hidden"></div>
+</div>
+
+{% endblock %}

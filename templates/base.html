@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Vacancy Monitor{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav>
+    <a href="{{ url_for('index') }}" class="nav-logo">Vacancy Monitor</a>
+    <div class="nav-links">
+      <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Статус</a>
+      <a href="{{ url_for('settings') }}" {% if request.endpoint == 'settings' %}class="active"{% endif %}>Настройки</a>
+      <a href="{{ url_for('log_page') }}" {% if request.endpoint == 'log_page' %}class="active"{% endif %}>Лог</a>
+    </div>
+  </nav>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
