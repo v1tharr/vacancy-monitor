@@ -9,7 +9,8 @@ async function runParser() {
     const data = await resp.json();
     if (data.status === 'started') {
       status.textContent = 'Парсер запущен — уведомление придёт в Telegram по завершении.';
-      pollStatus();
+      // перезагружаем страницу чтобы появилась кнопка "Остановить"
+      setTimeout(() => location.reload(), 800);
     } else {
       status.textContent = `Ошибка: ${data.error}`;
       status.classList.add('status-error');
@@ -31,16 +32,18 @@ async function stopParser() {
     const data = await resp.json();
     if (data.status === 'stopped') {
       status.textContent = 'Парсер остановлен.';
-      setTimeout(() => location.reload(), 1000);
+      setTimeout(() => location.reload(), 800);
     } else {
       status.textContent = `Ошибка: ${data.error}`;
+      status.classList.add('status-error');
     }
   } catch (e) {
     status.textContent = `Ошибка: ${e.message}`;
+    status.classList.add('status-error');
   }
 }
 
-// опрашиваем статус пока парсер работает, потом перезагружаем страницу
+// опрашиваем статус пока парсер работает, перезагружаем когда завершился
 function pollStatus() {
   const interval = setInterval(async () => {
     try {
@@ -56,9 +59,8 @@ function pollStatus() {
   }, 2000);
 }
 
-// если парсер уже работал когда открыли страницу - тоже запускаем polling
+// если парсер работал когда открыли страницу - запускаем polling
 if (document.querySelector('.running-indicator')) {
-  // небольшая задержка чтобы не конфликтовать с начальной загрузкой
   setTimeout(pollStatus, 1000);
 }
 
@@ -77,35 +79,41 @@ async function clearData(type) {
   const labels = { state: 'историю вакансий', log: 'лог' };
   if (!confirm(`Очистить ${labels[type]}? Это действие нельзя отменить.`)) return;
 
-  const status = document.getElementById('danger-status');
-  status.className = 'run-status';
+  const statusEl = document.getElementById('danger-status');
+  statusEl.className = 'run-status';
+  // отступ сверху чтобы не прилипало к кнопкам
+  statusEl.style.marginTop = '20px';
 
   try {
     const resp = await fetch(`/clear/${type}`, { method: 'POST' });
     const data = await resp.json();
     if (data.status === 'ok') {
-      status.textContent = `${labels[type][0].toUpperCase() + labels[type].slice(1)} очищен${type === 'log' ? '' : 'а'}.`;
+      const pastTense = type === 'log' ? 'Лог очищен.' : 'История вакансий очищена.';
+      statusEl.textContent = pastTense;
     } else {
-      status.textContent = `Ошибка: ${data.error}`;
-      status.classList.add('status-error');
+      statusEl.textContent = `Ошибка: ${data.error}`;
+      statusEl.classList.add('status-error');
     }
   } catch (e) {
-    status.textContent = `Ошибка: ${e.message}`;
-    status.classList.add('status-error');
+    statusEl.textContent = `Ошибка: ${e.message}`;
+    statusEl.classList.add('status-error');
   }
 }
 
 // подсветка строк лога
 function colorizeLog(lines) {
   return lines.map(line => {
-    const escaped = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    if (escaped.includes('[ERROR]') || escaped.includes('ошибка'))
-      return `<span class="line-error">${escaped}</span>`;
-    if (escaped.includes('[WARNING]') || escaped.includes('таймаут'))
-      return `<span class="line-warning">${escaped}</span>`;
-    if (escaped.includes('НОВАЯ') || escaped.includes('ОБНОВИЛАСЬ'))
-      return `<span class="line-new">${escaped}</span>`;
-    return `<span class="line-info">${escaped}</span>`;
+    const esc = line
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    if (esc.includes('[ERROR]') || esc.includes('ошибка'))
+      return `<span class="line-error">${esc}</span>`;
+    if (esc.includes('[WARNING]') || esc.includes('таймаут'))
+      return `<span class="line-warning">${esc}</span>`;
+    if (esc.includes('НОВАЯ') || esc.includes('ОБНОВИЛАСЬ'))
+      return `<span class="line-new">${esc}</span>`;
+    return `<span class="line-info">${esc}</span>`;
   }).join('\n');
 }
 
