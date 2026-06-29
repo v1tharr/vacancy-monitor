@@ -58,7 +58,7 @@ TELEGRAM_CHAT_ID=твой_chat_id
 
 ## Режимы запуска
 
-### CLI — разовый запуск (с ПК, вручную)
+### CLI — разовый запуск (вручную)
 
 ```bash
 python vacancy_monitor.py
