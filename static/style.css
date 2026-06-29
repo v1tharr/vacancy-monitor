@@ -305,3 +305,56 @@ main {
   .run-controls { flex-direction: column; }
   .tabs { flex-wrap: wrap; }
 }
+
+/* running indicator */
+.running-indicator {
+  font-size: 13px;
+  color: #4ecb71;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* danger tab */
+.danger-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.danger-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+
+.danger-info strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.danger-info p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.btn-danger {
+  background: #5c1f1f;
+  color: #e05555;
+  border: 1px solid #7a2a2a;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-danger:hover { background: #7a2a2a; }
+
+.status-error {
+  background: var(--error) !important;
+  border-color: #a04a4a !important;
+}
